@@ -20,9 +20,11 @@ from typing import TYPE_CHECKING
 from graphql import (
     GraphQLEnumType,
     GraphQLInputObjectType,
+    GraphQLInterfaceType,
     GraphQLList,
     GraphQLNonNull,
     GraphQLObjectType,
+    GraphQLUnionType,
     get_named_type,
 )
 
@@ -157,6 +159,36 @@ def _render_param_field(
 
 
 # --------------------------------------------------------------------------- #
+# Field expansion (object / interface output types share `.fields`)
+# --------------------------------------------------------------------------- #
+def _expand_fields(
+    named: "GraphQLNamedType",
+    type_map: dict[str, "GraphQLNamedType"],
+    visited: set[str],
+    title: str | None = None,
+) -> str:
+    """Render a type's `.fields` as nested <ResponseField>s wrapped in an
+    <Expandable>. `visited` must already include this type's name."""
+    child_blocks = [
+        _render_response_field(
+            name=fname,
+            gql_type=fdef.type,
+            description=getattr(fdef, "description", None),
+            type_map=type_map,
+            indent="",
+            visited=visited,
+        )
+        for fname, fdef in named.fields.items()
+    ]
+    return _block(
+        f'<Expandable title="{title or named.name}">',
+        "\n".join(child_blocks),
+        "</Expandable>",
+        "",
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Response  ->  <ResponseField> / <Expandable>
 # --------------------------------------------------------------------------- #
 def render_response(
@@ -202,28 +234,44 @@ def _render_response_field(
     if desc:
         inner_parts.append(desc)
 
-    # Expand object output types recursively, guarding against cycles.
-    if isinstance(named, GraphQLObjectType) and named.name not in visited:
+    # Expand composite output types recursively, guarding against cycles.
+    if named.name not in visited:
         child_visited = visited | {named.name}
-        child_blocks = [
-            _render_response_field(
-                name=fname,
-                gql_type=fdef.type,
-                description=getattr(fdef, "description", None),
-                type_map=type_map,
-                indent="",
-                visited=child_visited,
-            )
-            for fname, fdef in named.fields.items()
-        ]
-        inner_parts.append(
-            _block(
-                f'<Expandable title="{named.name}">',
-                "\n".join(child_blocks),
-                "</Expandable>",
-                "",
-            )
-        )
+
+        # Object / Interface: both expose `.fields`.
+        if isinstance(named, (GraphQLObjectType, GraphQLInterfaceType)):
+            inner_parts.append(_expand_fields(named, type_map, child_visited))
+
+        # Interface: also list each concrete implementing type.
+        if isinstance(named, GraphQLInterfaceType):
+            for impl in type_map.values():
+                if (
+                    isinstance(impl, GraphQLObjectType)
+                    and named in impl.interfaces
+                    and impl.name not in child_visited
+                ):
+                    inner_parts.append(
+                        _expand_fields(
+                            impl,
+                            type_map,
+                            child_visited | {impl.name},
+                            title=f"{impl.name} (implementation)",
+                        )
+                    )
+
+        # Union: no `.fields`; render each member object as its own variant.
+        elif isinstance(named, GraphQLUnionType):
+            for member in named.types:
+                if member.name in child_visited:
+                    continue
+                inner_parts.append(
+                    _expand_fields(
+                        member,
+                        type_map,
+                        child_visited | {member.name},
+                        title=member.name,
+                    )
+                )
 
     body = "\n".join(inner_parts)
     return _block(open_tag, body, "</ResponseField>", indent)

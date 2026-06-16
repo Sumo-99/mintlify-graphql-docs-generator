@@ -43,7 +43,7 @@ def test_title_fallback():
 
 # --------------------------- parser -------------------------- #
 def test_parse_counts(parsed):
-    assert len(parsed.queries) == 3
+    assert len(parsed.queries) == 5
     assert len(parsed.mutations) == 2
     assert len(parsed.subscriptions) == 1
 
@@ -90,6 +90,28 @@ def test_array_marker(parsed):
     assert "Product[]" in mdx
 
 
+def test_interface_response_expands_fields_and_impls(parsed):
+    field = next(f for f in parsed.queries if f.name == "node")
+    mdx = render_mdx(field, parsed.type_map)
+    # interface's own field
+    assert '<ResponseField name="id"' in mdx
+    # each concrete implementer rendered as its own variant
+    assert '<Expandable title="Node">' in mdx
+    assert '<Expandable title="Product (implementation)">' in mdx
+    assert '<Expandable title="User (implementation)">' in mdx
+
+
+def test_union_response_expands_members(parsed):
+    field = next(f for f in parsed.queries if f.name == "search")
+    mdx = render_mdx(field, parsed.type_map)
+    assert "SearchResult[]" in mdx
+    # one Expandable per union member, with member fields inside
+    assert '<Expandable title="Product">' in mdx
+    assert '<Expandable title="User">' in mdx
+    assert '<ResponseField name="price"' in mdx  # Product field
+    assert '<ResponseField name="cart"' in mdx  # User field
+
+
 # --------------------------- docs.json ----------------------- #
 def test_docs_json_groups(parsed):
     docs = build_docs_json(parsed, name="Sample")
@@ -115,7 +137,7 @@ def test_write_project(parsed, tmp_path):
     api = tmp_path / "api-reference"
     mdx_files = sorted(p.name for p in api.glob("*.mdx"))
     assert "get-product-by-id.mdx" in mdx_files
-    assert len(mdx_files) == 6  # 3 q + 2 m + 1 s
+    assert len(mdx_files) == 8  # 5 q + 2 m + 1 s
     docs = json.loads((tmp_path / "docs.json").read_text())
     assert docs["$schema"] == "https://mintlify.com/docs.json"
 
@@ -125,7 +147,7 @@ def test_cli(tmp_path, capsys):
     rc = main([str(SAMPLE), "-o", str(out), "--name", "CLI Test"])
     assert rc == 0
     assert (out / "docs.json").is_file()
-    assert capsys.readouterr().out.strip().startswith("Generated 6 page(s)")
+    assert capsys.readouterr().out.strip().startswith("Generated 8 page(s)")
 
 
 def test_cli_missing_file(tmp_path):

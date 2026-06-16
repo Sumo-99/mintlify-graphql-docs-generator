@@ -7,6 +7,12 @@ type Query {
   listProducts(filter: ProductFilter, limit: Int, offset: Int): [Product!]!
 
   getCurrentUser: User
+
+  """Look up any node by its global ID."""
+  node(id: ID!): Node
+
+  """Free-text search across products and users."""
+  search(term: String!): [SearchResult!]!
 }
 
 type Mutation {
@@ -43,8 +49,17 @@ enum Category {
   CLOTHING
 }
 
+"""Anything with a globally-unique ID."""
+interface Node {
+  """Globally-unique identifier."""
+  id: ID!
+}
+
+"""A result returned by the search query."""
+union SearchResult = Product | User
+
 """A purchasable product."""
-type Product {
+type Product implements Node {
   id: ID!
   """Display name."""
   name: String!
@@ -53,7 +68,7 @@ type Product {
   related: [Product!]
 }
 
-type User {
+type User implements Node {
   id: ID!
   name: String
   cart: Cart
