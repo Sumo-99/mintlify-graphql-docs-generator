@@ -1,0 +1,65 @@
+"""Root query operations."""
+type Query {
+  """Fetch a single product by its unique ID."""
+  getProductById(id: ID!): Product
+
+  """List products with optional filtering and pagination."""
+  listProducts(filter: ProductFilter, limit: Int, offset: Int): [Product!]!
+
+  getCurrentUser: User
+}
+
+type Mutation {
+  """Create a new product."""
+  createProduct(input: CreateProductInput!): Product
+
+  addToCart(productId: ID!, quantity: Int!): Cart
+}
+
+type Subscription {
+  """Emits whenever a product's price changes."""
+  productPriceChanged(productId: ID!): Product
+}
+
+"""Filter criteria for product listings."""
+input ProductFilter {
+  """Free-text search across product name and description."""
+  query: String
+  category: Category
+  minPrice: Float
+  tags: [String!]
+}
+
+input CreateProductInput {
+  name: String!
+  price: Float!
+  category: Category!
+}
+
+"""High-level product grouping."""
+enum Category {
+  ELECTRONICS
+  BOOKS
+  CLOTHING
+}
+
+"""A purchasable product."""
+type Product {
+  id: ID!
+  """Display name."""
+  name: String!
+  price: Float!
+  category: Category!
+  related: [Product!]
+}
+
+type User {
+  id: ID!
+  name: String
+  cart: Cart
+}
+
+type Cart {
+  total: Float!
+  items: [Product!]!
+}

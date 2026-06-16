@@ -1,0 +1,21 @@
+[project]
+name = "graphql-mintlify"
+version = "0.1.0"
+description = "Generate a Mintlify docs project from a GraphQL SDL schema"
+requires-python = ">=3.10"
+dependencies = [
+    "graphql-core>=3.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+gql-mintlify = "cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["cli", "parser", "type_render", "mdx_writer", "docsjson", "utils", "models"]
